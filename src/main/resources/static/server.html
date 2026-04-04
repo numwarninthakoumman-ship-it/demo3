@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Server Log - 4-Phase Commit (4PC)</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #0d1117;
+      color: white;
+    }
+
+    h1 {
+      color: #00ff66;
+      margin-bottom: 16px;
+    }
+
+    .top-bar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      background: #00ff66;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      opacity: 0.9;
+    }
+
+    #lastUpdate {
+      color: #b5b5b5;
+      font-size: 14px;
+    }
+
+    .group {
+      margin-bottom: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      max-height: 260px;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.35);
+    }
+
+    .group h3 {
+      margin-top: 0;
+      position: sticky;
+      top: 0;
+      background: inherit;
+      padding-bottom: 8px;
+    }
+
+    .booking-group { background: #08253d; border-left: 5px solid #00bfff; }
+    .prepare-group { background: #3d3200; border-left: 5px solid #ffe600; }
+    .precommit-group { background: #3d1a00; border-left: 5px solid #ff8c00; } /* Màu cam cho Pre-commit */
+    .commit-group { background: #00331f; border-left: 5px solid #00ff66; }
+    .error-group { background: #3a0000; border-left: 5px solid #ff4d4d; }
+    .all-group { background: #1f2937; border-left: 5px solid #8b949e; }
+
+    .log { font-family: Consolas, monospace; font-size: 13px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.08); word-break: break-word; }
+
+   .booking-log { color: #66ccff; }
+    .prepare-log { color: #ffe066; }
+    .precommit-log { color: #ffa500; }
+    .commit-log { color: #00ff88; }
+    .error-log { color: #ff6b6b; }
+    .empty { color: #b5b5b5; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <h1>🖥 Server Log (Giao thức 4PC)</h1>
+
+  <div class="top-bar">
+    <button onclick="loadLog()">🔄 Tải log mới</button>
+    <div id="lastUpdate">Chưa cập nhật</div>
+  </div>
+
+  <div class="group booking-group">
+    <h3>📥 Booking Server (Điều phối viên)</h3>
+    <div id="booking"></div>
+  </div>
+
+  <div class="group prepare-group">
+    <h3>📦 PHA 1: PREPARE / VOTE</h3>
+    <div id="prepare"></div>
+  </div>
+
+  <div class="group precommit-group">
+    <h3>🟠 PHA 2: PRE-COMMIT (Tạm lưu)</h3>
+    <div id="precommit"></div>
+  </div>
+
+  <div class="group commit-group">
+    <h3>✅ PHA 3 & 4: COMMIT / ACK</h3>
+    <div id="commit"></div>
+  </div>
+
+  <div class="group error-group">
+    <h3>❌ ERROR / FAIL / ABORT</h3>
+    <div id="error"></div>
+  </div>
+
+  <div class="group all-group">
+    <h3>📋 Toàn bộ lịch sử Log</h3>
+    <div id="all"></div>
+<<<<<<< HEAD
+</div>
+=======
+  </div>
+>>>>>>> 3b291847d783b39b98aea54d77ac9820dbfc83eb
+
+  <script>
+  const servers = [
+    {
+      name: "Server 5",
+      url: "https://dien-toan-lan-hai.onrender.com"
+    },
+    {
+      name: "Booking Server",
+      url: "https://hotel-booking-system-new.onrender.com"
+    },
+    {
+      name: "Server 4",
+      url: "https://dientoanck.onrender.com"
+    },
+    {
+      name: "Server 1",
+      url: "https://demo2-75m2.onrender.com"
+    },
+
+
+    {
+      name: "Server 2",
+      url: "https://dientoanck2.onrender.com"
+    },
+
+   
+  ];
+
+  function convertUTCToVN(log) {
+    const match = log.match(/\[(.*?)\]/);
+    if (!match) return log;
+    const rawTime = match[1].trim();
+    let date = new Date(rawTime);
+    if (isNaN(date.getTime())) return log;
+    return log.replace("[" + rawTime + "]", "[" + date.toLocaleString("vi-VN", {timeZone: "Asia/Ho_Chi_Minh", hour12: false}) + "]");
+  }
+
+  async function loadLog() {
+    // Thêm precommit vào danh sách reset
+    ["booking", "prepare", "precommit", "commit", "error", "all"].forEach(id => {
+      document.getElementById(id).innerHTML = '<div class="empty">Đang tải...</div>';
+    });
+
+    const bookingLogs = [];
+    const prepareLogs = [];
+    const precommitLogs = []; // Array mới
+    const commitLogs = [];
+    const errorLogs = [];
+    const allLogs = [];
+
+    await Promise.all(
+      servers.map(async server => {
+        try {
+          const response = await fetch(`${server.url}/api/log?t=${Date.now()}`, { cache: "no-store" });
+          const data = await response.json();
+          if (!Array.isArray(data)) return;
+
+          [...data].reverse().forEach(log => {
+            log = convertUTCToVN(log);
+            const fullLog = `[${server.name}] ${log}`;
+            const upper = fullLog.toUpperCase();
+
+            allLogs.unshift(`<div class="log">${fullLog}</div>`);
+
+            if (server.name === "Booking Server") {
+              bookingLogs.unshift(`<div class="log booking-log">${fullLog}</div>`);
+            }
+
+            // LỌC PHA 1
+            if (upper.includes("PREPARE") || upper.includes("VOTE")) {
+              prepareLogs.unshift(`<div class="log prepare-log">${fullLog}</div>`);
+            }
+
+            // LỌC PHA 2: PRE-COMMIT (MỚI)
+            if (upper.includes("PRE-COMMIT") || upper.includes("PRECOMMIT") || upper.includes("PRE_ACK")) {
+              precommitLogs.unshift(`<div class="log precommit-log">${fullLog}</div>`);
+            }
+
+            // LỌC PHA 3 & 4
+            if (
+              upper.includes("COMMIT") || 
+              upper.includes("SUCCESS") || 
+              upper.includes("ACK") || 
+              upper.includes("HOÀN TẤT")
+            ) {
+              commitLogs.unshift(`<div class="log commit-log">${fullLog}</div>`);
+            }
+
+            // LỌC LỖI
+            if (upper.includes("ERROR") || upper.includes("FAIL") || upper.includes("ABORT")) {
+              errorLogs.unshift(`<div class="log error-log">${fullLog}</div>`);
+            }
+          });
+        } catch (err) {
+const msg = `<div class="log error-log">❌ [${server.name}] Lỗi: ${err.message}</div>`;
+          errorLogs.unshift(msg);
+          allLogs.unshift(msg);
+        }
+      })
+    );
+
+    // Render dữ liệu ra giao diện
+    document.getElementById("booking").innerHTML = bookingLogs.join("") || '<div class="empty">Trống</div>';
+    document.getElementById("prepare").innerHTML = prepareLogs.join("") || '<div class="empty">Trống</div>';
+    document.getElementById("precommit").innerHTML = precommitLogs.join("") || '<div class="empty">Chưa có log PRE-COMMIT</div>';
+    document.getElementById("commit").innerHTML = commitLogs.join("") || '<div class="empty">Trống</div>';
+    document.getElementById("error").innerHTML = errorLogs.join("") || '<div class="empty">Trống</div>';
+    document.getElementById("all").innerHTML = allLogs.join("") || '<div class="empty">Trống</div>';
+
+    document.getElementById("lastUpdate").innerText = "Cập nhật: " + new Date().toLocaleTimeString("vi-VN");
+  }
+
+  window.onload = () => { loadLog(); setInterval(loadLog, 100000); };
+</script>
+</body>
+</html>
