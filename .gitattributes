@@ -1,2 +1,17 @@
-/mvnw text eol=lf
-*.cmd text eol=crlf
+* text=auto
+
+# Fix line endings cho code backend
+*.java text eol=lf
+*.kt text eol=lf
+*.properties text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Web files
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+
+# Docker & script
+Dockerfile text eol=lf
+*.sh text eol=lf
